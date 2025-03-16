@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodGuardScan</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <style>
+        /* Background with a gradient effect */
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #4fbfb0, #191414);
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 600px;
+            margin-top: 100px;
+        }
+
+        /* Transparent overlay to create a dimmed background */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4); /* Darken the background */
+            z-index: -1;
+        }
+
+        /* Logo styling */
+        .brand-logo {
+            display: block;
+            margin: 0 auto;
+            height: 120px;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        /* Center the title */
+        h1 {
+            font-size: 3rem;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        p {
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        /* Form styling */
+        .form-label, .btn {
+            font-size: 1.1rem;
+        }
+
+        .btn-primary {
+            background-color: #1db954;
+            border-color: #1db954;
+            font-size: 1.2rem;
+        }
+
+        .btn-primary:hover {
+            background-color: #1aa84d;
+            border-color: #1aa84d;
+        }
+
+        /* Progress bar container */
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container .progress {
+            height: 20px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay for dimming the background -->
+    <div class="overlay"></div>
+
+    <div class="container mt-5">
+        <!-- Update the image path to reference the static folder -->
+        <img src="/static/logo.png" alt="FoodGuardScan Logo" class="brand-logo">
+        <h1 class="text-center">FoodGuardScan</h1>
+        <p class="text-center">Upload an image of an ingredient list to scan for harmful substances.</p>
+        
+        <form id="scan-form" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="image" class="form-label">Choose an Image</label>
+                <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Scan</button>
+        </form>
+
+        <div class="progress-container">
+            <p class="text-center">Scanning your image...</p>
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <div class="mt-4" id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('scan-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            const fileInput = document.getElementById('image');
+            formData.append('image', fileInput.files[0]);
+
+            const resultsDiv = document.getElementById('results');
+            const progressContainer = document.querySelector('.progress-container');
+            const progressBar = document.querySelector('.progress-bar');
+
+            resultsDiv.innerHTML = '';
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            const progressSimulation = setInterval(() => {
+                let currentWidth = parseFloat(progressBar.style.width);
+                if (currentWidth < 90) {
+                    progressBar.style.width = currentWidth + 10 + '%';
+                } else {
+                    clearInterval(progressSimulation);
+                }
+            }, 300);
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                clearInterval(progressSimulation);
+                progressBar.style.width = '100%';
+
+                if (result.error) {
+                    resultsDiv.innerHTML = `<div class="alert alert-danger">${result.error}</div>`;
+                } else {
+                    const harmfulIngredients = result.harmful_ingredients;
+                    let harmfulHtml = '';
+
+                    if (Object.keys(harmfulIngredients).length === 0) {
+                        harmfulHtml = `<p class="text-success">No harmful ingredients found!</p>`;
+                    } else {
+                        harmfulHtml = `<h3 class="text-danger">Harmful Ingredients Found:</h3><ul>`;
+                        for (const [ingredient, info] of Object.entries(harmfulIngredients)) {
+                            harmfulHtml += `<li><strong>${ingredient}:</strong> ${info}</li>`;
+                        }
+                        harmfulHtml += `</ul>`;
+                    }
+
+                    resultsDiv.innerHTML = `
+                        <h3>Extracted Text:</h3>
+                        <p>${result.extracted_text}</p>
+                        ${harmfulHtml}
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = `<div class="alert alert-danger">An unexpected error occurred. Please try again.</div>`;
+            } finally {
+                progressContainer.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
